@@ -77,6 +77,7 @@ __interrupt void ADC_ISR (void){
     int i;
     for (i =0; i<window; i++){
         ADCvalue = ADCMEM0;
+        // ADCvalue = -7.76*pow(10, -6) * ADCvalue -0.0115;
         ADCvalue = -1*(1.8663 - 2.1*ADCvalue)/388;
         sum+=ADCvalue;
     }
