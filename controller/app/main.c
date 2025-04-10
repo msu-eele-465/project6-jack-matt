@@ -19,7 +19,6 @@ int main(void)
     PM5CTL0 &= ~LOCKLPM5;
     heartbeat_init();
     keypad_init();
-    // i2c_master_transmit(0x68, "hi");
     char previous = " ";
     char keypressed = " ";
     int already_unlocked = 0;
@@ -38,64 +37,15 @@ int main(void)
             i2c_master_transmit(0x40, "G", 1);
             switch(keypressed){
                 case '1':
-                    i2c_master_transmit(0x40, "1", 1);
+                    write_toplin("Greetings!     :");
+                    write_bottom("Matt/Jack.      ");
+                    
                     i2c_master_transmit(0x42, "1", 1);
                     break;
-                case '2':
-                    i2c_master_transmit(0x40, "2", 1);
-                    i2c_master_transmit(0x42, "2", 1);
-                    break;
-                case '3':
-                    i2c_master_transmit(0x40, "3", 1);
-                    i2c_master_transmit(0x42, "3", 1);
-                    break;
-                case 'A':
-                    i2c_master_transmit(0x40, "A", 1);
-                    i2c_master_transmit(0x42, "A", 1);
-                    break;
-                case '4':
-                    i2c_master_transmit(0x40, "4", 1);
-                    i2c_master_transmit(0x42, "4", 1);
-                    break;
-                case '5':
-                    i2c_master_transmit(0x40, "5", 1);
-                    i2c_master_transmit(0x42, "5", 1);
-                    break;
-                case '6':
-                    i2c_master_transmit(0x40, "6", 1);
-                    i2c_master_transmit(0x42, "6", 1);
-                    break;
-                case 'B':
-                    i2c_master_transmit(0x40, "B", 1);
-                    i2c_master_transmit(0x42, "B", 1);
-                    break;
-                case '7':
-                    i2c_master_transmit(0x40, "7", 1);
-                    // i2c_master_transmit(0x42, "7", 1);
-                    break;
-                case '8':
-                    i2c_master_transmit(0x40, "8", 1);
-                    i2c_master_transmit(0x42, "8", 1);
-                    break;
-                case '9':
-                    i2c_master_transmit(0x40, "9", 1);
-                    i2c_master_transmit(0x42, "9", 1);
-                    break;
-                case 'C':
-                    i2c_master_transmit(0x40, "C", 1);
-                    i2c_master_transmit(0x42, "C", 1);
-                    break;
-                case '*':
-                    farenheit = !farenheit;
-                    break;
-                case '0':
-                    i2c_master_transmit(0x40, "0", 1);
-                    i2c_master_transmit(0x42, "0", 1);
-                    break;
                 case '#':
-                    i2c_master_transmit(0x40, "T", 1);
+                    i2c_master_transmit(0x40, "t", 1);
                     float temp = analog_temp_get_temp();
-                    if (farenheit) temp = (temp*9/5)+32;
+                    // temp = (temp*9/5)+32;
                     itoa((int)temp, holding, 10);
                     i2c_master_transmit(0x40, holding, 2);
                     i2c_master_transmit(0x40, ".", 1);
@@ -113,6 +63,7 @@ int main(void)
                     break;
             }
         } else if (first_unlock == 0 && keypad_is_unlocked()){
+            write_toplin("Set window size:");
             already_unlocked = 1;
             first_unlock = 1;
             i2c_master_transmit(0x40, "R", 1);
@@ -157,10 +108,16 @@ int main(void)
                   window_size = '9';
                   break;
                 default:
+                  if (window_key!='0') write_bottom("Invalid Input!  ");
                   window_key = 'J';
               }
             }
           analog_temp_set_window(window);
+          i2c_master_transmit(0x40, "H", 1);
+          buff[0] = window_size;
+          char message[16] = "You selected:   ";
+          message[15]=buff[0];
+          write_toplin(message);
             
         } else if (!keypad_is_unlocked() && keypressed=='D'){
             i2c_master_transmit(0x40, "D", 1);
@@ -178,6 +135,16 @@ int main(void)
         
         // __delay_cycles(1000000);
     }
+}
+
+void write_toplin(char line[16]){
+  i2c_master_transmit(0x40, "GT", 2);
+  i2c_master_transmit(0x40, line, 16);
+}
+
+void write_bottom(char* line){
+  i2c_master_transmit(0x40, "HB", 2);
+  i2c_master_transmit(0x40, line, 16);
 }
 
 void itoa(int value, char* result, int base)
