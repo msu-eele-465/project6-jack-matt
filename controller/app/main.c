@@ -7,6 +7,10 @@
 #include "analog_temp.h"
 #include <msp430fr2355.h>
 
+char buff[2];
+int farenheit = 0;
+char window_size = 'A';
+
 int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer
@@ -23,18 +27,18 @@ int main(void)
     char keypressed = " ";
     int already_unlocked = 0;
     int first_unlock = 0;
-    char window_size = 'A';
     int window = 3;
-    char buff[2];
-    int farenheit = 0;
+    char temperature[2];
+    char line[16];
 
     // float temp = 0.0;
     char holding [5];
+    char topdec[5];
+    char botdec[5];
     char* temp_string = "hello";
     while(1) {
         // Main loop
         if (keypressed != previous && keypressed != 0 && first_unlock && keypad_is_unlocked()){
-            i2c_master_transmit(0x40, "G", 1);
             switch(keypressed){
                 case '1':
                     write_toplin("Greetings!     :");
@@ -42,10 +46,19 @@ int main(void)
                     
                     i2c_master_transmit(0x42, "1", 1);
                     break;
+                case '2':
+                    i2c_master_recieve(0x48, 0x00, 3, temperature);
+                    char temp_char = ((temperature[0]<<1)+((temperature[1]>>7)&1));
+                    if(farenheit) temp_char = (temp_char*9/5)+32;
+                    itoa(temp_char, topdec, 10);
+                    itoa((((temperature[1]>>3)&15)), botdec, 10);
+                    write_temperature(topdec, botdec);
+                    break;
                 case '#':
+                    i2c_master_transmit(0x40, "G", 1);
                     i2c_master_transmit(0x40, "t", 1);
                     float temp = analog_temp_get_temp();
-                    // temp = (temp*9/5)+32;
+                    if(farenheit) temp = (temp*9/5)+32;
                     itoa((int)temp, holding, 10);
                     i2c_master_transmit(0x40, holding, 2);
                     i2c_master_transmit(0x40, ".", 1);
@@ -129,6 +142,7 @@ int main(void)
             already_unlocked = 0;
         }
         keypressed = keypad_scan();
+
         
         // i2c_master_transmit(0x40, "0", 1);
         
@@ -142,9 +156,21 @@ void write_toplin(char line[16]){
   i2c_master_transmit(0x40, line, 16);
 }
 
-void write_bottom(char* line){
+void write_bottom(char line[16]){
   i2c_master_transmit(0x40, "HB", 2);
   i2c_master_transmit(0x40, line, 16);
+}
+
+void write_temperature(char top[5], char bottom[5]){
+  i2c_master_transmit(0x40, "H", 1);
+  i2c_master_transmit(0x40, "t", 1);
+  i2c_master_transmit(0x40, top, 2);
+  i2c_master_transmit(0x40, ".", 1);
+  i2c_master_transmit(0x40, bottom, 1);
+  if(farenheit) i2c_master_transmit(0x40, "F", 1);
+  else  i2c_master_transmit(0x40, "C", 1);
+  buff[0] = window_size;
+  i2c_master_transmit(0x40, buff, 1);
 }
 
 void itoa(int value, char* result, int base)

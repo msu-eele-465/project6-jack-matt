@@ -4,11 +4,12 @@
 
 int start = 0;
 int i, j;
-char Data_In[] = "eee";
+char Data_In[] = "eeee";
 int Data_Cnt = 0;
 int Out_Cnt = 0;
 char* Packet;
 int packet_size = 0;
+int reg_address = 0;
 
 void i2c_master_init(){
     UCB0CTLW0 |= UCSWRST;
@@ -45,13 +46,43 @@ void i2c_master_transmit(int address, char* packet, int size){
     packet_size = size;
     UCB0TBCNT = packet_size;
     UCB0CTLW0 |= UCTR;          // Tx mode
+    Data_Cnt=0;
 
-    // for (i = 0; i<sizeof(Packet); i++){
-        UCB0CTLW0 |= UCTXSTT;       // Start condition
-        while ((UCB0IFG & UCSTPIFG) == 0) 
-            __delay_cycles(100);    // wait for STOP
-        UCB0IFG &= ~UCSTPIFG;       // Clear STOP flag
-    // }
+    UCB0CTLW0 |= UCTXSTT;       // Start condition
+    while ((UCB0IFG & UCSTPIFG) == 0) 
+        __delay_cycles(100);    // wait for STOP
+    UCB0IFG &= ~UCSTPIFG;       // Clear STOP flag
+}
+
+void i2c_master_recieve(int address, char reg_addr[1], int size, char return_data[]){
+// -- Send starting register --
+    UCB0I2CSA = address;         // Slave address
+    packet_size = 1;
+    Packet[0] = 0x00;
+    UCB0TBCNT = 0x01;
+    reg_address = reg_addr;
+
+    UCB0CTLW0 |= UCTR;          // Tx mode
+    Data_Cnt=0;
+    UCB0CTLW0 |= UCTXSTT;       // Start condition
+    while ((UCB0IFG & UCSTPIFG) == 0) 
+        __delay_cycles(100);    // wait for STOP
+    UCB0IFG &= ~UCSTPIFG;       // Clear STOP flag
+
+    // read from register pointer/address
+    Out_Cnt = 0;
+    UCB0TBCNT = 0x02;
+    UCB0CTLW0 &= ~UCTR;          // Rx mode
+    UCB0CTLW0 |= UCTXSTT;       // Start condition
+    while ((UCB0IFG & UCSTPIFG) == 0) 
+        __delay_cycles(100);    // wait for STOP
+    UCB0IFG &= ~UCSTPIFG;       // Clear STOP flag
+    // -----------------------------------------
+    char value;
+    for(i=0;i<2;i++){
+        value = Data_In[i];
+        return_data[i] = value;
+    }
 }
 
 // -- START I2C ISR --
@@ -62,15 +93,17 @@ __interrupt void EUSCI_B0_I2C_ISR(void){
         __delay_cycles(30);
         UCB0TXBUF = Packet[Data_Cnt];  // transmit each value in packet
         Data_Cnt++;
-        if(Data_Cnt==packet_size) Data_Cnt=0;
     }else{
         switch(UCB0IV){
             case 0x16:              // ID 16: RXIFG0 asserts after from slave
                 Data_In[Out_Cnt] = UCB0RXBUF;    //receive data and store in Data_In
+                char Data_stuff[] = Data_In;
+                char reading = Data_In[Out_Cnt];
                 Out_Cnt++;
+                __delay_cycles(100);
                 break;
             case 0x18:              // ID 18: TXIFG0 asserts when register val can be sent
-                UCB0TXBUF = 0x03;   // register address
+                UCB0TXBUF = 0x00;   // register address
                 break;
             default:
                 break;
