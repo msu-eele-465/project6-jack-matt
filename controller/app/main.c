@@ -110,7 +110,9 @@ int main(void)
                     break;
                 case 'B':
                     temp_mode = 2;
-                    write_toplin("Cool            ");
+                    break;
+                case 'C':
+                    temp_mode = 3;
                     break;
             }
         }  else if (!keypad_is_unlocked() && keypressed=='D'){
@@ -119,11 +121,12 @@ int main(void)
             first_unlock = 0;
             i2c_master_transmit(0x40, "H", 1);
             i2c_master_transmit(0x40, "G", 1);
+            temp_mode = 0;
         }
         keypressed = keypad_scan();
 
       if(temperature_receive_flag==1 && keypad_is_unlocked()){
-        i2c_master_recieve(0x48, 0x00, 3, temperature);
+        // i2c_master_recieve(0x48, 0x00, 3, temperature);
         if (timer_counter%2==0) {
           update_screen();
           temperature_receive_flag = 0;
@@ -147,6 +150,9 @@ void update_screen(){
     case 2:
       write_string("GTCool     A:", 13);
       break;
+    case 3:
+      write_string("GTMatch    A:", 13);
+      break;
     case 0:
       write_string("GTOff      A:", 13);
       break;
@@ -162,13 +168,12 @@ void update_screen(){
   // ----- ----- ----- -----
 
   // ----- update bottom line -----
-  i2c_master_recieve(0x48, 0x00, 3, temperature);
   char temp_top2 = ' ';
   write_string("HBN ", 4);
   // time in seconds
   itoa(timer_counter/4, holding, 10);
   if ((timer_counter/4)>100) write_string(holding, 3);
-  else if(timer_counter/4>10) {
+  else if(timer_counter/4>9) {
     write_string("0", 1);
     write_string(holding, 2);
   } else{
@@ -177,12 +182,14 @@ void update_screen(){
   }
   write_string("s   P:", 6);
   // i2c temp
-  temperature[0] = (temperature[0]<<1);
-  temp_top2 = ((temperature[1]>>7)&1);
-  temp_char = temperature[0]+temp_top2;
-  itoa(temp_char, topdec, 10);
-  itoa((int)(((temperature[1]>>3)&15)*6.25), botdec, 10);
-  write_string(topdec, 2);
+  float val = i2c_master_recieve(0x48, 0x00, 3);
+  itoa((int)(val), topdec, 10);
+  itoa((int)(val*100), botdec, 10);
+  if (val>9.99) write_string(topdec, 2);
+  else{
+    write_string("0", 1);
+    write_string(topdec, 1);
+  }
   write_string(".", 1);
   write_string(botdec, 1);
   write_string("C", 1);
@@ -250,8 +257,10 @@ __interrupt void temperature_update(void)
     timer_counter++;
     if (timer_counter%2==0){
       P1OUT ^= BIT6;
-      temperature_receive_flag = 1;
     } 
+    if (timer_counter%4==0){
+      temperature_receive_flag = 1;
+    }
     if(timer_counter<1600){
       switch (temp_mode) {
         case 0:

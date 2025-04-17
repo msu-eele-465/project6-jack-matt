@@ -8,8 +8,10 @@ char Data_In[] = "eeee";
 int Data_Cnt = 0;
 int Out_Cnt = 0;
 char* Packet;
+int return_val;
 int packet_size = 0;
 int reg_address = 0;
+int receive_transmit_flag = 0;
 
 void i2c_master_init(){
     UCB0CTLW0 |= UCSWRST;
@@ -49,24 +51,33 @@ void i2c_master_transmit(int address, char* packet, int size){
     Data_Cnt=0;
 
     UCB0CTLW0 |= UCTXSTT;       // Start condition
-    while ((UCB0IFG & UCSTPIFG) == 0) 
+    int safety_counter = 0;
+    while ((UCB0IFG & UCSTPIFG) == 0) {
         __delay_cycles(100);    // wait for STOP
+        safety_counter++;
+        if(safety_counter>10000) break;
+    }
     UCB0IFG &= ~UCSTPIFG;       // Clear STOP flag
 }
 
-void i2c_master_recieve(int address, char reg_addr[1], int size, char return_data[]){
+float i2c_master_recieve(int address, char reg_addr[1], int size){
 // -- Send starting register --
     UCB0I2CSA = address;         // Slave address
     packet_size = 1;
     Packet[0] = 0x00;
     UCB0TBCNT = 0x01;
-    reg_address = reg_addr;
+    // reg_address = reg_addr;
 
-    UCB0CTLW0 |= UCTR;          // Tx mode
     Data_Cnt=0;
+    receive_transmit_flag = 1;
+    UCB0CTLW0 |= UCTR;          // Tx mode
     UCB0CTLW0 |= UCTXSTT;       // Start condition
-    while ((UCB0IFG & UCSTPIFG) == 0) 
+    int safety_counter = 0;
+    while ((UCB0IFG & UCSTPIFG) == 0) {
         __delay_cycles(100);    // wait for STOP
+        safety_counter++;
+        if(safety_counter>10000) break;
+    }
     UCB0IFG &= ~UCSTPIFG;       // Clear STOP flag
 
     // read from register pointer/address
@@ -78,11 +89,12 @@ void i2c_master_recieve(int address, char reg_addr[1], int size, char return_dat
         __delay_cycles(100);    // wait for STOP
     UCB0IFG &= ~UCSTPIFG;       // Clear STOP flag
     // -----------------------------------------
-    char value;
-    for(i=0;i<2;i++){
-        value = Data_In[i];
-        return_data[i] = value;
-    }
+    // float return_val = 0;
+    // char top = (Data_In[0]<<1) | (Data_In[1]>>7);
+    // char bottom = (Data_In[1] >> 3) & 0x00001111b;
+    // return_val = (int)top + (bottom * 0.0625);
+    return_val = (Data_In[0] << 5 | Data_In[1] >> 3);
+    return (float)return_val*0.0625;
 }
 
 // -- START I2C ISR --
@@ -92,6 +104,10 @@ __interrupt void EUSCI_B0_I2C_ISR(void){
     if(Data_Cnt<packet_size){                   // if first time in interrupt
         __delay_cycles(30);
         UCB0TXBUF = Packet[Data_Cnt];  // transmit each value in packet
+        if (receive_transmit_flag==1){
+            UCB0TXBUF = 0x00;
+            receive_transmit_flag = 0;
+        } 
         Data_Cnt++;
     }else{
         switch(UCB0IV){
