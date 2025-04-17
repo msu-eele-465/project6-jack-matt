@@ -20,6 +20,7 @@ char temp_char = ' ';
 int temp_max = 24;
 int temp_min = 23;
 int temp_mode = 0;
+int temperature_receive_flag = 0;
 
 int main(void)
 {
@@ -65,9 +66,10 @@ int main(void)
     // float temp = 0.0;
     char holding [5];
     char* temp_string = "hello";
+    char temp_top2 = ' ';
     while(1) {
         // Main loop
-        if (keypressed != previous && keypressed != 0 && first_unlock && keypad_is_unlocked()){
+        if (keypressed != previous && keypressed != 0 && keypad_is_unlocked()){
             switch(keypressed){
                 case '1':
                     write_toplin("Greetings!     :");
@@ -76,30 +78,27 @@ int main(void)
                     i2c_master_transmit(0x42, "1", 1);
                     break;
                 case '2':
-                    i2c_master_recieve(0x48, 0x00, 3, temperature);
-                    temperature[0] = (temperature[0]<<1);
-                    temperature[1] = ((temperature[1]>>7)&1);
-                    temp_char = temperature[0]+temperature[1];
-                    if(farenheit) temp_char = (temp_char*9/5)+32;
-                    itoa(temp_char, topdec, 10);
-                    itoa((((temperature[1]>>3)&15)), botdec, 10);
-                    write_temperature(topdec, botdec);
+                    // temperature[0] = (temperature[0]<<1);
+                    // temp_top2 = ((temperature[1]>>7)&1);
+                    // temp_char = temperature[0]+temp_top2;
+                    // itoa(temp_char, topdec, 10);
+                    // itoa((int)(((temperature[1]>>3)&15)*6.25), botdec, 10);
+                    // write_temperature(topdec, botdec);
                     break;
                 case '#':
-                    i2c_master_transmit(0x40, "G", 1);
-                    i2c_master_transmit(0x40, "t", 1);
-                    float temp = analog_temp_get_temp();
-                    if(farenheit) temp = (temp*9/5)+32;
-                    itoa((int)temp, holding, 10);
-                    i2c_master_transmit(0x40, holding, 2);
-                    i2c_master_transmit(0x40, ".", 1);
-                    temp = 100*(temp-(int)temp);
-                    itoa((int)temp, holding, 10);
-                    i2c_master_transmit(0x40, holding, 1);
-                    if(farenheit) i2c_master_transmit(0x40, "F", 1);
-                    else  i2c_master_transmit(0x40, "C", 1);
-                    buff[0] = window_size;
-                    i2c_master_transmit(0x40, buff, 1);
+                    // i2c_master_transmit(0x40, "G", 1);
+                    // i2c_master_transmit(0x40, "t", 1);
+                    // float temp = analog_temp_get_temp();
+                    // itoa((int)temp, holding, 10);
+                    // i2c_master_transmit(0x40, holding, 2);
+                    // i2c_master_transmit(0x40, ".", 1);
+                    // temp = 100*(temp-(int)temp);
+                    // itoa((int)temp, holding, 10);
+                    // i2c_master_transmit(0x40, holding, 1);
+                    // if(farenheit) i2c_master_transmit(0x40, "F", 1);
+                    // else  i2c_master_transmit(0x40, "C", 1);
+                    // buff[0] = window_size;
+                    // i2c_master_transmit(0x40, buff, 1);
                     break;
                 case 'D':
                     i2c_master_transmit(0x40, "D", 1);
@@ -111,81 +110,86 @@ int main(void)
                     break;
                 case 'B':
                     temp_mode = 2;
+                    write_toplin("Cool            ");
                     break;
             }
-        } else if (first_unlock == 0 && keypad_is_unlocked()){
-            write_toplin("Set window size:");
-            i2c_master_transmit(0x40, "R", 1);
-            char window_key = 'J';
-            while (window_key == 'J'){
-              window_key = keypad_scan();
-              switch (window_key){
-                case '1':
-                  window = 1;
-                  window_size = '1';
-                  break;
-                case '2':
-                  window = 2;
-                  window_size = '2';
-                  break;
-                case '3':
-                  window = 3;
-                  window_size = '3';
-                  break;
-                case '4':
-                  window = 4;
-                  window_size = '4';
-                  break;
-                case '5':
-                  window = 5;
-                  window_size = '5';
-                  break;
-                case '6':
-                  window = 6;
-                  window_size = '6';
-                  break;
-                case '7':
-                  window = 7;
-                  window_size = '7';
-                  break;
-                case '8':
-                  window = 8;
-                  window_size = '8';
-                  break;
-                case '9':
-                  window = 9;
-                  window_size = '9';
-                  break;
-                default:
-                  if (window_key!='0') write_bottom("Invalid Input!  ");
-                  window_key = 'J';
-              }
-            }
-          analog_temp_set_window(window);
-          i2c_master_transmit(0x40, "H", 1);
-          buff[0] = window_size;
-          char message[16] = "You selected:   ";
-          message[15]=buff[0];
-          write_toplin(message);
-          already_unlocked = 1;
-          first_unlock = 1;
-        } else if (!keypad_is_unlocked() && keypressed=='D'){
+        }  else if (!keypad_is_unlocked() && keypressed=='D'){
             i2c_master_transmit(0x40, "D", 1);
             i2c_master_transmit(0x42, "D", 1);
             first_unlock = 0;
             i2c_master_transmit(0x40, "H", 1);
             i2c_master_transmit(0x40, "G", 1);
-        }else {
-            already_unlocked = 0;
         }
         keypressed = keypad_scan();
 
+      if(temperature_receive_flag==1 && keypad_is_unlocked()){
+        i2c_master_recieve(0x48, 0x00, 3, temperature);
+        if (timer_counter%2==0) {
+          update_screen();
+          temperature_receive_flag = 0;
+        }
         
-        // i2c_master_transmit(0x40, "0", 1);
-        
-        
-        // __delay_cycles(1000000);
+      }
     }
+}
+
+void update_screen(){
+  __disable_interrupt();
+  TB1CCTL0 |= CCIFG;
+  __enable_interrupt();
+
+  // ----- update top line -----
+  char holding [5];
+  switch (temp_mode){
+    case 1:
+      write_string("GTHeat     A:", 13);
+      break;
+    case 2:
+      write_string("GTCool     A:", 13);
+      break;
+    case 0:
+      write_string("GTOff      A:", 13);
+      break;
+  }
+  float temp = analog_temp_get_temp();
+  itoa((int)temp, holding, 10);
+  i2c_master_transmit(0x40, holding, 2);
+  i2c_master_transmit(0x40, ".", 1);
+  temp = 100*(temp-(int)temp);
+  itoa((int)temp, holding, 10);
+  i2c_master_transmit(0x40, holding, 1);
+  i2c_master_transmit(0x40, "C", 1);
+  // ----- ----- ----- -----
+
+  // ----- update bottom line -----
+  i2c_master_recieve(0x48, 0x00, 3, temperature);
+  char temp_top2 = ' ';
+  write_string("HBN ", 4);
+  // time in seconds
+  itoa(timer_counter/4, holding, 10);
+  if ((timer_counter/4)>100) write_string(holding, 3);
+  else if(timer_counter/4>10) {
+    write_string("0", 1);
+    write_string(holding, 2);
+  } else{
+    write_string("00", 2);
+    write_string(holding, 1);
+  }
+  write_string("s   P:", 6);
+  // i2c temp
+  temperature[0] = (temperature[0]<<1);
+  temp_top2 = ((temperature[1]>>7)&1);
+  temp_char = temperature[0]+temp_top2;
+  itoa(temp_char, topdec, 10);
+  itoa((int)(((temperature[1]>>3)&15)*6.25), botdec, 10);
+  write_string(topdec, 2);
+  write_string(".", 1);
+  write_string(botdec, 1);
+  write_string("C", 1);
+  
+  __disable_interrupt();
+  TB1CCTL0 &= ~CCIFG;
+  __enable_interrupt();
 }
 
 void write_toplin(char line[16]){
@@ -198,14 +202,17 @@ void write_bottom(char line[16]){
   i2c_master_transmit(0x40, line, 16);
 }
 
+void write_string(char line[], int size){
+  i2c_master_transmit(0x40, line, size);
+}
+
 void write_temperature(char top[5], char bottom[5]){
   i2c_master_transmit(0x40, "H", 1);
   i2c_master_transmit(0x40, "t", 1);
   i2c_master_transmit(0x40, top, 2);
   i2c_master_transmit(0x40, ".", 1);
   i2c_master_transmit(0x40, bottom, 1);
-  if(farenheit) i2c_master_transmit(0x40, "F", 1);
-  else  i2c_master_transmit(0x40, "C", 1);
+  i2c_master_transmit(0x40, "C", 1);
   buff[0] = window_size;
   i2c_master_transmit(0x40, buff, 1);
 }
@@ -243,6 +250,7 @@ __interrupt void temperature_update(void)
     timer_counter++;
     if (timer_counter%2==0){
       P1OUT ^= BIT6;
+      temperature_receive_flag = 1;
     } 
     if(timer_counter<1600){
       switch (temp_mode) {
