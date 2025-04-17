@@ -11,6 +11,9 @@ static unsigned int pattern_step5 = 1;
 static unsigned int pattern_step6 = 128;
 static unsigned int pattern_step7 = 1;
 static unsigned int pattern_count7 = 1;
+static unsigned int pattern_step8 = 8;
+static unsigned int pattern_count8 = 8;
+
 
 static led_pattern_t current_pattern = PATTERN_NONE;
 static int pattern_active = 0;
@@ -30,6 +33,17 @@ static const unsigned char IN_OUT_PATTERN[6] = {
     0x81,   // 10000001
     0x42,   // 01000010
     0x24    // 00100100
+};
+
+static const unsigned char DOWN_FILL[8] = {
+    0x00000001b,
+    0x00000011b,
+    0x00000111b,
+    0x00001111b,
+    0x00011111b,
+    0x00111111b,
+    0x01111111b,
+    0x11111111b
 };
 
 // Timer initialization for pattern updates
@@ -64,28 +78,15 @@ void ledarray_init(void) {
 void ledarray_select_pattern(led_pattern_t pattern) {
     if (pattern == current_pattern) {
         switch(current_pattern){
-            case PATTERN_1_TOGGLE:
-                pattern_step1 = 0;
-                break;
-            case PATTERN_2_UP_COUNT:
-                pattern_step2 = 0;
-                break;
-            case PATTERN_3_IN_OUT:
-                pattern_step3 = 0;
-                break;
-            case PATTERN_4_DOWN_COUNT:
-                pattern_step4 = 0;
-                break;
-            case PATTERN_5_RLA:
-                pattern_step5 = 1;
-                break;
-            case PATTERN_6_RRC:
-                pattern_step6 = 128;
-                break;
             // *Note* ran out of memory
-            // case PATTERN_7_FILL:
-            //     pattern_step6 = 1;
-            //     break;
+            case PATTERN_7_FILL:
+                current_pattern = PATTERN_7_FILL;
+                pattern_step7 = 1;
+                break;
+            case PATTERN_8_FILL_DOWN:
+                current_pattern = PATTERN_8_FILL_DOWN;
+                pattern_step8 = 8;
+                break;
         }
     } else {
         current_pattern = pattern;
@@ -135,60 +136,25 @@ void ledarray_update(void) {
     if (!pattern_active) return;
     
     switch (current_pattern) {
-        case PATTERN_0_STATIC:
-            ledarray_set_pattern(STATIC_PATTERN);
-            break;
-            
-        case PATTERN_1_TOGGLE:
-            ledarray_set_pattern(TOGGLE_PATTERN[pattern_step1]);
-            pattern_step1 = (pattern_step1 + 1) % 2;
-            break;
-            
-        case PATTERN_2_UP_COUNT:
-            ledarray_set_pattern(pattern_step2);
-            pattern_step2 = (pattern_step2 + 1) % 256;
-            break;
-            
-        case PATTERN_3_IN_OUT:
-            ledarray_set_pattern(IN_OUT_PATTERN[pattern_step3]);
-            pattern_step3 = (pattern_step3 + 1) % 6;
-            break;
-
-        case PATTERN_4_DOWN_COUNT:
-            ledarray_set_pattern(pattern_step4);
-            if(pattern_step4 == 0){
-                pattern_step4 == 255;
-            } else
-                pattern_step4 = (pattern_step4 - 1) % 256;
-            break;
-
-        case PATTERN_5_RLA:
-            ledarray_set_pattern(pattern_step5);
-            pattern_step5 = (pattern_step5 << 1);
-            if (pattern_step5>128)
-                pattern_step5 = 1;
-            break;
-
-        case PATTERN_6_RRC:
-            ledarray_set_pattern(~pattern_step6);
-            pattern_step6 = (pattern_step6 >> 1);
-            if (pattern_step6==0)
-                pattern_step6 = 128;
-            break;
 
         // *Note* Commented out for the sake of memory (ran out)
-        // case PATTERN_7_FILL:
-        //     ledarray_set_pattern(pattern_step7);
-        //     if (pattern_count7==8)
-        //         pattern_count7 = 0;
-        //     pattern_step7 = 2;
-        //     int i;
-        //     for (i = 0; i<pattern_count7; i++){
-        //         pattern_step7 *= 2;
-        //     }
-        //     pattern_step7--;
-        //     pattern_count7++;
-        //     break;
+        case PATTERN_7_FILL:
+            ledarray_set_pattern(pattern_step7);
+            if (pattern_count7==8)
+                pattern_count7 = 0;
+            pattern_step7 = 2;
+            int i;
+            for (i = 0; i<pattern_count7; i++){
+                pattern_step7 *= 2;
+            }
+            pattern_step7--;
+            pattern_count7++;
+            break;
+        case PATTERN_8_FILL_DOWN:
+            ledarray_set_pattern(pattern_step8);
+            pattern_step8 = pattern_step8>>1 | pattern_step8;
+            if(pattern_step8 > 64) pattern_step8 = 1;
+            break;
             
         default:
             P1OUT &= ~LED_PINSA;

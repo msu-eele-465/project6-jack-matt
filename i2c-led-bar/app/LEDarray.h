@@ -30,6 +30,7 @@ typedef enum {
     PATTERN_5_RLA = 5,
     PATTERN_6_RRC = 6,
     PATTERN_7_FILL = 7,
+    PATTERN_8_FILL_DOWN = 8,
     NUM_PATTERNS
 } led_pattern_t;
 

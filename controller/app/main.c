@@ -9,7 +9,7 @@
 
 char buff[2];
 int farenheit = 0;
-char window_size = 'A';
+char window_size = '4';
 int timer_counter = 0;
 char temperature[2];
 char topdec[5];
@@ -17,9 +17,11 @@ char botdec[5];
 int first_unlock = 0;
 int already_unlocked = 0;
 char temp_char = ' ';
-int temp_max = 24;
-int temp_min = 23;
+int temp_max = 26;
+int temp_min = 20;
 int temp_mode = 0;
+float ambient = 0;
+float peltier = 0;
 int temperature_receive_flag = 0;
 
 int main(void)
@@ -103,16 +105,23 @@ int main(void)
                 case 'D':
                     i2c_master_transmit(0x40, "D", 1);
                     i2c_master_transmit(0x42, "D", 1);
+                    i2c_master_transmit(0x42, "9", 1);
                     temp_mode = 0;
                     break;
                 case 'A':
                     temp_mode = 1;
+                    timer_counter = 0;
+                    i2c_master_transmit(0x42, '7', 1);
                     break;
                 case 'B':
                     temp_mode = 2;
+                    timer_counter = 0;
+                    i2c_master_transmit(0x42, '7', 1);
                     break;
                 case 'C':
                     temp_mode = 3;
+                    timer_counter = 0;
+                    i2c_master_transmit(0x42, '7', 1);
                     break;
             }
         }  else if (!keypad_is_unlocked() && keypressed=='D'){
@@ -158,6 +167,7 @@ void update_screen(){
       break;
   }
   float temp = analog_temp_get_temp();
+  ambient = temp;
   itoa((int)temp, holding, 10);
   i2c_master_transmit(0x40, holding, 2);
   i2c_master_transmit(0x40, ".", 1);
@@ -169,7 +179,10 @@ void update_screen(){
 
   // ----- update bottom line -----
   char temp_top2 = ' ';
-  write_string("HBN ", 4);
+  write_string("HB", 2);
+  buff[0] = window_size;
+  i2c_master_transmit(0x40, buff, 1);
+  write_string(" ", 1);
   // time in seconds
   itoa(timer_counter/4, holding, 10);
   if ((timer_counter/4)>100) write_string(holding, 3);
@@ -183,6 +196,7 @@ void update_screen(){
   write_string("s   P:", 6);
   // i2c temp
   float val = i2c_master_recieve(0x48, 0x00, 3);
+  peltier = val;
   itoa((int)(val), topdec, 10);
   itoa((int)(val*100), botdec, 10);
   if (val>9.99) write_string(topdec, 2);
@@ -265,12 +279,13 @@ __interrupt void temperature_update(void)
       switch (temp_mode) {
         case 0:
           // off
-          P4OUT |= BIT2 | BIT3;
+          P4OUT |= BIT2;
+          P4OUT |= BIT3;
           break;
         case 1:
           //heat
           P4OUT |= BIT2;
-          if(temp_char<temp_max){
+          if(peltier<temp_max){
             // start/keep heating
             P4OUT &= ~BIT3;
           } else {
@@ -280,20 +295,28 @@ __interrupt void temperature_update(void)
         case 2:
           // cool
           P4OUT |= BIT3;
-          if(temp_char>temp_min){
+          if(peltier>temp_min){
             // start/keep cooling
             P4OUT &= ~BIT2;
           } else {
             P4OUT |= BIT2;
           }
           break;
+        case 3:
+          // match
+          P4OUT |= BIT3;
+          P4OUT |= BIT2;
+          if(peltier>ambient){
+            P4OUT &= ~BIT2;
+          } else if (peltier<ambient){
+            P4OUT &= ~BIT3;
+          }
+          break;
       }
-      // P4OUT ^= BIT3;
-      // P4OUT ^= BIT2;
     }
     if(timer_counter>1200){
-      P4OUT &= ~BIT3;
-      P4OUT &= ~BIT2;
+      P4OUT |= BIT3;
+      P4OUT |= BIT2;
     }
     TB0CTL &= ~TBIFG;
     return;

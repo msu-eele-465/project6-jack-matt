@@ -38,40 +38,18 @@ __interrupt void EUSCI_B0_I2C_ISR(void){
             Datum_In = UCB0RXBUF;    //receive data and store in Data_In
             ledarray_set_pattern(Datum_In);
             switch(Datum_In){
-                case '0':
-                    ledarray_select_pattern(PATTERN_0_STATIC);
-                    break;
-                case '1':
-                    ledarray_select_pattern(PATTERN_1_TOGGLE);
-                    break;
-                case '2':
-                    ledarray_select_pattern(PATTERN_2_UP_COUNT);
-                    break;
-                case '3':
-                    ledarray_select_pattern(PATTERN_3_IN_OUT);
-                    break;
-                case '4':
-                    ledarray_select_pattern(PATTERN_4_DOWN_COUNT);
-                    break;
-                case '5':
-                    ledarray_select_pattern(PATTERN_5_RLA);
-                    break;
-                case '6':
-                    ledarray_select_pattern(PATTERN_6_RRC);
-                    break;
                 // *Note* ran out of memory
-                // case '7':
-                //     ledarray_select_pattern(PATTERN_7_FILL);
-                //     break;
-                case 'D':
+                case '7':
+                    ledarray_select_pattern(PATTERN_7_FILL);
+                    break;
+                case '8':
+                    ledarray_select_pattern(PATTERN_8_FILL_DOWN);
+                    break;
+                case '9':
                     ledarray_select_pattern(PATTERN_NONE);
                     break;
-                case 'A':
-                    ledarray_decrease_period();
-                    break;
-                case 'B':
-                    ledarray_increase_period();
-                    break;
+                case 'D':
+                    ledarray_select_pattern(PATTERN_NONE);
             }
             heartbeat_run();
         case 0x18:              // ID 18: TXIFG0 asserts when register val can be sent
