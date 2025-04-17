@@ -10,31 +10,60 @@
 char buff[2];
 int farenheit = 0;
 char window_size = 'A';
+int timer_counter = 0;
+char temperature[2];
+char topdec[5];
+char botdec[5];
+int first_unlock = 0;
+int already_unlocked = 0;
+char temp_char = ' ';
+int temp_max = 24;
+int temp_min = 23;
+int temp_mode = 0;
 
 int main(void)
 {
     WDTCTL = WDTPW | WDTHOLD;    // Stop watchdog timer
+    P1DIR |= BIT6; // configure LED2
+    P1OUT &= ~BIT6;
+
+    // -- config of mosfet control pins
+    P4DIR |= BIT3;
+    P4DIR |= BIT2;
+    P4OUT |= BIT3;
+    P4OUT |= BIT2;
+
+    //-- SETUP TIMER -------------------------------------------------------
+    TB1CTL |= TBCLR;
+    TB1CTL |= TBSSEL__SMCLK;     // Source SMCLK
+    TB1CTL |= MC__UP;
+    TB1CTL |= CNTL_0;
+
+    TB1CCR0 = 65535/2;
+
+    TB1EX0 |= TBIDEX__7;        // setting divider D2
+
+    TB1CCTL0 |= CCIE;           // Clear ISR flag
+    TB1CCTL0 &= ~CCIFG;         // Enable timer interrupt
+
     i2c_master_init();
     analog_temp_init();
     analog_temp_get_temp();
     analog_temp_get_temp();
 
+    __enable_interrupt();       // Enable Maskable IRQs
+
     // Disable low-power mode / GPIO high-impedance
     PM5CTL0 &= ~LOCKLPM5;
-    heartbeat_init();
+    // heartbeat_init();
     keypad_init();
     char previous = " ";
     char keypressed = " ";
-    int already_unlocked = 0;
-    int first_unlock = 0;
     int window = 3;
-    char temperature[2];
     char line[16];
 
     // float temp = 0.0;
     char holding [5];
-    char topdec[5];
-    char botdec[5];
     char* temp_string = "hello";
     while(1) {
         // Main loop
@@ -48,7 +77,9 @@ int main(void)
                     break;
                 case '2':
                     i2c_master_recieve(0x48, 0x00, 3, temperature);
-                    char temp_char = ((temperature[0]<<1)+((temperature[1]>>7)&1));
+                    temperature[0] = (temperature[0]<<1);
+                    temperature[1] = ((temperature[1]>>7)&1);
+                    temp_char = temperature[0]+temperature[1];
                     if(farenheit) temp_char = (temp_char*9/5)+32;
                     itoa(temp_char, topdec, 10);
                     itoa((((temperature[1]>>3)&15)), botdec, 10);
@@ -73,12 +104,17 @@ int main(void)
                 case 'D':
                     i2c_master_transmit(0x40, "D", 1);
                     i2c_master_transmit(0x42, "D", 1);
+                    temp_mode = 0;
+                    break;
+                case 'A':
+                    temp_mode = 1;
+                    break;
+                case 'B':
+                    temp_mode = 2;
                     break;
             }
         } else if (first_unlock == 0 && keypad_is_unlocked()){
             write_toplin("Set window size:");
-            already_unlocked = 1;
-            first_unlock = 1;
             i2c_master_transmit(0x40, "R", 1);
             char window_key = 'J';
             while (window_key == 'J'){
@@ -131,7 +167,8 @@ int main(void)
           char message[16] = "You selected:   ";
           message[15]=buff[0];
           write_toplin(message);
-            
+          already_unlocked = 1;
+          first_unlock = 1;
         } else if (!keypad_is_unlocked() && keypressed=='D'){
             i2c_master_transmit(0x40, "D", 1);
             i2c_master_transmit(0x42, "D", 1);
@@ -197,3 +234,50 @@ void itoa(int value, char* result, int base)
 	  }
 
 	}
+
+
+// This is the interrupt in which will controll most aspects of the project.
+  #pragma vector = TIMER1_B0_VECTOR
+__interrupt void temperature_update(void)
+{
+    timer_counter++;
+    if (timer_counter%2==0){
+      P1OUT ^= BIT6;
+    } 
+    if(timer_counter<1600){
+      switch (temp_mode) {
+        case 0:
+          // off
+          P4OUT |= BIT2 | BIT3;
+          break;
+        case 1:
+          //heat
+          P4OUT |= BIT2;
+          if(temp_char<temp_max){
+            // start/keep heating
+            P4OUT &= ~BIT3;
+          } else {
+            P4OUT |= BIT3;
+          }
+          break;
+        case 2:
+          // cool
+          P4OUT |= BIT3;
+          if(temp_char>temp_min){
+            // start/keep cooling
+            P4OUT &= ~BIT2;
+          } else {
+            P4OUT |= BIT2;
+          }
+          break;
+      }
+      // P4OUT ^= BIT3;
+      // P4OUT ^= BIT2;
+    }
+    if(timer_counter>1200){
+      P4OUT &= ~BIT3;
+      P4OUT &= ~BIT2;
+    }
+    TB0CTL &= ~TBIFG;
+    return;
+}
